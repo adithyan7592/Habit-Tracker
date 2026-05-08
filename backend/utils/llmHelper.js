@@ -1,0 +1,67 @@
+let AnthropicPackage = require("@anthropic-ai/sdk");
+const Anthropic = AnthropicPackage.default || AnthropicPackage;
+
+const SYSTEM_PROMPT = `You are a nutrition habit review assistant. Analyze the customer's 7-day food habit diary.
+
+Rules:
+- Do not diagnose disease or prescribe medicines.
+- Give practical food-habit feedback only.
+- Mention that users with medical conditions should consult a qualified professional.
+- Output in clean sections:
+  1. Overall Pattern
+  2. Positive Habits
+  3. Risk Areas
+  4. 7-Day Improvement Plan
+  5. Final Note
+- Keep it concise and customer-friendly.`;
+
+exports.generateLLMAnalysis = async (summary) => {
+  try {
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+
+    if (!apiKey) {
+      throw new Error("ANTHROPIC_API_KEY is missing in backend .env");
+    }
+
+    if (!apiKey.startsWith("sk-ant-")) {
+      throw new Error("Invalid Claude API key. Claude keys usually start with sk-ant-");
+    }
+
+    const anthropic = new Anthropic({
+      apiKey
+    });
+
+    const response = await anthropic.messages.create({
+      model: process.env.ANTHROPIC_MODEL || "claude-3-5-haiku-latest",
+      max_tokens: 1200,
+      temperature: 0.4,
+      system: SYSTEM_PROMPT,
+      messages: [
+        {
+          role: "user",
+          content: summary
+        }
+      ]
+    });
+
+    const text = response.content
+      ?.filter((block) => block.type === "text")
+      ?.map((block) => block.text)
+      ?.join("\n");
+
+    if (!text) {
+      throw new Error("Claude returned empty response");
+    }
+
+    return text;
+  } catch (err) {
+    console.error("Claude analysis error:", {
+      message: err.message,
+      status: err.status,
+      type: err.error?.type,
+      error: err.error
+    });
+
+    throw new Error(err.message || "Claude analysis failed");
+  }
+};
