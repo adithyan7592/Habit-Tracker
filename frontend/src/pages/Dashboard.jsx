@@ -63,7 +63,7 @@ const ProgressDots = ({ daysCompleted, expectedDay, windowExpired }) => (
       );
     })}
     <span style={{ fontSize:13, color:'#6b7280', marginLeft:4 }}>
-      {daysCompleted}/7 days
+     {daysCompleted}/7 days
     </span>
   </div>
 );

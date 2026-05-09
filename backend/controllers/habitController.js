@@ -22,7 +22,7 @@ const getExpectedDayNumber = (startedAt) => {
   const diffDays   = Math.floor(diffMs / (1000 * 60 * 60 * 24)); // 0-based offset
   const dayNumber  = diffDays + 1; // Day 1 = diff 0, Day 7 = diff 6
 
-  if (dayNumber < 1 || dayNumber > 7) return null; // outside window
+  if (dayNumber < 1 || dayNumber > 7) return null; 
   return dayNumber;
 };
 
@@ -160,9 +160,9 @@ exports.submitHabit = async (req, res) => {
 
     res.status(201).json({
       message: `Day ${nextExpected} recorded. ${
-        nextExpected < 7
-          ? `Come back tomorrow for Day ${nextExpected + 1}.`
-          : 'You have completed all 7 days! Your report will unlock tomorrow.'
+      nextExpected < 2
+  ? `Come back tomorrow for Day ${nextExpected + 1}.`
+  : 'You have completed all 2 days! Your report will unlock tomorrow.'
       }`,
       habit,
       ...(isFirstEntry ? {
@@ -188,12 +188,11 @@ exports.processAnalysis = async (req, res) => {
 
     // 1. Validate: 7 entries must exist
     const habits = await Habit.find({ phone: req.user.phone }).sort({ dayNumber: 1 }).lean();
-    if (habits.length < 7) {
-      return res.status(400).json({
-        message: `Only ${habits.length}/7 days submitted. Complete all 7 days first.`
-      });
-    }
-
+  if (habits.length < 7) {
+  return res.status(400).json({
+    message: `Only ${habits.length}/7 days submitted. Complete all 7 days first.`
+  });
+}
     // 2. Validate: reportUnlockAt must have passed (calendar window enforced)
     const reportUnlockAt = user?.reportUnlockAt;
     if (!reportUnlockAt) {
