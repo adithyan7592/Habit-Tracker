@@ -154,9 +154,9 @@ exports.submitHabit = async (req, res) => {
 
     res.status(201).json({
       message: `Day ${nextExpected} recorded. ${
-      nextExpected < 2
+   nextExpected < 7
   ? `Come back tomorrow for Day ${nextExpected + 1}.`
-  : 'You have completed all 2 days! Your report will unlock tomorrow.'
+  : 'You have completed all 7 days! Your report will unlock tomorrow.'
       }`,
       habit,
       ...(isFirstEntry ? {
