@@ -313,7 +313,7 @@ ${renderMarkdown(status.finalReport)}
         </p>
       </div>
     );
-  } else if (submittedToday) {
+  } else if (submittedToday && expectedDay <= daysCompleted) {
     entrySection = (
       <div style={{ background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:14,
                      padding:24, textAlign:'center' }}>
