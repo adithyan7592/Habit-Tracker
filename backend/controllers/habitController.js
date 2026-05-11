@@ -124,19 +124,13 @@ exports.submitHabit = async (req, res) => {
     const nextExpected  = lastStoredDay + 1;
 
     // 4. Calendar day must match the next un-submitted day
-    if (expectedDay !== nextExpected) {
-      if (expectedDay < nextExpected) {
-        // They already submitted for today's calendar slot
-        return res.status(400).json({
-          message: `You have already submitted Day ${lastStoredDay}. Come back tomorrow for Day ${nextExpected}.`
-        });
-      }
-      // Calendar moved forward but they skipped a day — gap in submissions
-      return res.status(400).json({
-        message: `Day ${nextExpected} was missed. Please submit Day ${nextExpected} (today is calendar Day ${expectedDay}).`
-      });
-    }
-
+   if (expectedDay < nextExpected) {
+  // They already submitted for today's calendar slot
+  return res.status(400).json({
+    message: `You have already submitted Day ${lastStoredDay}. Come back tomorrow for Day ${nextExpected}.`
+  });
+}
+// If expectedDay > nextExpected (missed days), we allow catch-up — just submit next in sequence
     // 5. Actually write the entry
     const isFirstEntry = nextExpected === 1;
 
