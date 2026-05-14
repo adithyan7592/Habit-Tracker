@@ -81,7 +81,10 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(false);
   const [msg,     setMsg]     = useState({ text: '', type: '' });
 
-  const showMsg  = (text, type = 'error') => setMsg({ text, type });
+ const showMsg = (text, type = 'error') => {
+  setMsg({ text, type });
+  setTimeout(() => setMsg({ text: '', type: '' }), 3000);
+};
   const clearMsg = () => setMsg({ text: '', type: '' });
 
   const getStatus = async () => {
