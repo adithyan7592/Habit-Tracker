@@ -263,16 +263,34 @@ exports.submitMeal = async (req, res) => {
       return res.status(400).json({ message: 'Your 7-day submission window has closed.' });
     }
 
-    const lastEntry = await Habit.findOne({ phone: req.user.phone })
-      .sort({ dayNumber: -1 }).lean();
-    const lastStoredDay = lastEntry ? lastEntry.dayNumber : 0;
-    const nextExpected  = lastStoredDay + 1;
+const lastEntry = await Habit.findOne({ phone: req.user.phone })
+  .sort({ dayNumber: -1 }).lean();
+const lastStoredDay = lastEntry ? lastEntry.dayNumber : 0;
 
-    if (expectedDay < nextExpected) {
-      return res.status(400).json({
-        message: `You already submitted Day ${lastStoredDay}. Come back tomorrow.`
-      });
-    }
+// Check if today's partial entry already exists for expectedDay
+const todayHabit = await Habit.findOne({
+  phone: req.user.phone,
+  dayNumber: expectedDay
+});
+
+// Only block if the day is fully complete (all 3 meals done)
+const dayFullyDone = todayHabit &&
+  todayHabit.breakfast && todayHabit.lunch && todayHabit.dinner;
+
+if (dayFullyDone) {
+  return res.status(400).json({
+    message: `Day ${expectedDay} is already complete. Come back tomorrow for Day ${expectedDay + 1}.`
+  });
+}
+
+// Block if trying to go backwards (expectedDay < last completed day)
+if (expectedDay < lastStoredDay) {
+  return res.status(400).json({
+    message: `Come back tomorrow for Day ${lastStoredDay + 1}.`
+  });
+}
+
+const nextExpected = expectedDay;
 
     // Check if today's entry exists
     const todayHabit = await Habit.findOne({
