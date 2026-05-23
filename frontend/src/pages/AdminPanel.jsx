@@ -124,7 +124,11 @@ const Drawer = ({ user, onClose }) => {
                     </span>
                   )}
                 </div>
-                <p className="drawer-entry-text">{e.foodDetails}</p>
+              <div className="drawer-entry-text">
+  <div><b style={{ color:'#15803d' }}>🌅 Breakfast:</b> {e.breakfast}</div>
+  <div><b style={{ color:'#15803d' }}>☀️ Lunch:</b> {e.lunch}</div>
+  <div><b style={{ color:'#15803d' }}>🌙 Dinner:</b> {e.dinner}</div>
+</div>
               </div>
             )) : <EmptyState icon="🍽️" text="No food entries submitted yet"/>}
           </div>

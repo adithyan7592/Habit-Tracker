@@ -75,16 +75,18 @@ const GenderSelect = ({ value, onChange }) => (
 );
 
 const Dashboard = () => {
-  const [status,  setStatus]  = useState(null);
-  const [details, setDetails] = useState(emptyDetails);
-  const [input,   setInput]   = useState('');
-  const [loading, setLoading] = useState(false);
-  const [msg,     setMsg]     = useState({ text: '', type: '' });
+  const [status,    setStatus]    = useState(null);
+  const [details,   setDetails]   = useState(emptyDetails);
+  const [breakfast, setBreakfast] = useState('');
+  const [lunch,     setLunch]     = useState('');
+  const [dinner,    setDinner]    = useState('');
+  const [loading,   setLoading]   = useState(false);
+  const [msg,       setMsg]       = useState({ text: '', type: '' });
 
- const showMsg = (text, type = 'error') => {
-  setMsg({ text, type });
-  setTimeout(() => setMsg({ text: '', type: '' }), 3000);
-};
+  const showMsg = (text, type = 'error') => {
+    setMsg({ text, type });
+    setTimeout(() => setMsg({ text: '', type: '' }), 3000);
+  };
   const clearMsg = () => setMsg({ text: '', type: '' });
 
   const getStatus = async () => {
@@ -110,12 +112,17 @@ const Dashboard = () => {
     finally { setLoading(false); }
   };
 
+  // ── Submit habit with breakfast / lunch / dinner ──────────────────────────
   const handleSubmit = async () => {
     setLoading(true); clearMsg();
     try {
-      const res = await apiFetch('/habits/submit', { method: 'POST', body: JSON.stringify({ foodDetails: input }) });
+      const res = await apiFetch('/habits/submit', {
+        method: 'POST',
+        body: JSON.stringify({ breakfast, lunch, dinner })
+      });
       showMsg(res.message, 'success');
-      setInput(''); await getStatus();
+      setBreakfast(''); setLunch(''); setDinner('');
+      await getStatus();
     } catch (err) { showMsg(err.message); }
     finally { setLoading(false); }
   };
@@ -146,6 +153,7 @@ ${renderMarkdown(status.finalReport)}</body></html>`;
 
   const logout = () => { localStorage.clear(); window.location.href = '/login'; };
 
+  // ── Loading state ─────────────────────────────────────────────────────────
   if (!status) return (
     <div className="spinner-wrap">
       <div className="spinner"/>
@@ -156,9 +164,10 @@ ${renderMarkdown(status.finalReport)}</body></html>`;
   const { daysCompleted, entries, finalReport, reportGeneratedAt,
           startedAt, reportUnlockAt, expectedDay, windowExpired, submittedToday } = status;
 
-  const allDone    = daysCompleted === 7;
+  const allDone     = daysCompleted === 7;
   const reportReady = allDone && windowExpired;
 
+  // ── Entry section state machine ───────────────────────────────────────────
   let entrySection;
 
   if (finalReport) {
@@ -174,6 +183,7 @@ ${renderMarkdown(status.finalReport)}</body></html>`;
         <div className="report-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(finalReport) }}/>
       </div>
     );
+
   } else if (allDone && !windowExpired) {
     const days = Math.ceil((new Date(reportUnlockAt) - new Date()) / 86400000);
     entrySection = (
@@ -186,17 +196,21 @@ ${renderMarkdown(status.finalReport)}</body></html>`;
         {days > 0 && <p style={{ fontSize: 13, color: '#9ca3af', margin: 0 }}>{days} day{days > 1 ? 's' : ''} to go</p>}
       </div>
     );
+
   } else if (reportReady) {
     entrySection = (
       <div style={{ textAlign: 'center', padding: '24px 0' }}>
         <div className="state-emoji">✅</div>
         <h3 className="state-title green" style={{ textAlign: 'center' }}>Collection complete</h3>
-        <p className="state-text green" style={{ textAlign: 'center', marginBottom: 16 }}>Your 7-day window ended. Your report is ready!</p>
+        <p className="state-text green" style={{ textAlign: 'center', marginBottom: 16 }}>
+          Your 7-day window ended. Your report is ready!
+        </p>
         <button className="btn-generate" disabled={loading} onClick={handleGenerateReport}>
           {loading ? '⏳ AI Analysing…' : '🤖 Generate My Report'}
         </button>
       </div>
     );
+
   } else if (windowExpired && !allDone) {
     entrySection = (
       <div className="state-card red">
@@ -207,6 +221,7 @@ ${renderMarkdown(status.finalReport)}</body></html>`;
         </p>
       </div>
     );
+
   } else if (submittedToday && expectedDay <= daysCompleted) {
     entrySection = (
       <div className="state-card blue">
@@ -218,20 +233,48 @@ ${renderMarkdown(status.finalReport)}</body></html>`;
         </p>
       </div>
     );
+
   } else {
+    // ── Normal entry form with breakfast / lunch / dinner ──────────────────
     entrySection = (
       <div>
         <div className="entry-header">
           <span className="entry-day-badge">Day {expectedDay ?? daysCompleted + 1} of 7</span>
           {startedAt && <span className="entry-unlock-text">Unlocks {fmtDate(reportUnlockAt)}</span>}
         </div>
-        <textarea className="entry-textarea" rows={5}
-          placeholder={'Describe today\'s meals:\n• Breakfast — what, how much, time?\n• Lunch — home-cooked or outside?\n• Dinner, snacks, sweets?\n• Water intake, cravings…'}
-          value={input} onChange={e => setInput(e.target.value)} maxLength={5000}
-        />
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 12 }}>
+          <div>
+            <label className="field-label">🌅 Breakfast</label>
+            <textarea className="entry-textarea" rows={2}
+              placeholder="e.g. Puttu and kadala curry, tea..."
+              value={breakfast}
+              onChange={e => setBreakfast(e.target.value)}
+              maxLength={1000}/>
+          </div>
+          <div>
+            <label className="field-label">☀️ Lunch</label>
+            <textarea className="entry-textarea" rows={2}
+              placeholder="e.g. Rice, fish curry, sambar..."
+              value={lunch}
+              onChange={e => setLunch(e.target.value)}
+              maxLength={1000}/>
+          </div>
+          <div>
+            <label className="field-label">🌙 Dinner</label>
+            <textarea className="entry-textarea" rows={2}
+              placeholder="e.g. Chapathi, egg curry..."
+              value={dinner}
+              onChange={e => setDinner(e.target.value)}
+              maxLength={1000}/>
+          </div>
+        </div>
+
         <div className="entry-footer">
-          <span className={`char-count${input.length > 4500 ? ' warn' : ''}`}>{input.length}/5000</span>
-          <button className="btn-submit" disabled={loading || !input.trim()} onClick={handleSubmit}>
+          <span style={{ fontSize: 12, color: '#9ca3af' }}>All 3 meals required</span>
+          <button className="btn-submit"
+            disabled={loading || !breakfast.trim() || !lunch.trim() || !dinner.trim()}
+            onClick={handleSubmit}>
             {loading ? '⏳ Saving…' : `Submit Day ${expectedDay ?? daysCompleted + 1} →`}
           </button>
         </div>
@@ -239,6 +282,7 @@ ${renderMarkdown(status.finalReport)}</body></html>`;
     );
   }
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="dashboard-page">
       <nav className="app-nav">
@@ -304,6 +348,7 @@ ${renderMarkdown(status.finalReport)}</body></html>`;
 
           <ProgressDots daysCompleted={daysCompleted} expectedDay={expectedDay} windowExpired={windowExpired}/>
 
+          {/* Submitted entries */}
           {entries.length > 0 && (
             <div style={{ marginBottom: 16 }}>
               <div className="entries-label">Submitted Entries</div>
@@ -313,9 +358,20 @@ ${renderMarkdown(status.finalReport)}</body></html>`;
                     <span className="entry-day-label">Day {e.dayNumber}</span>
                     <span className="entry-date">{fmtDate(e.dateSubmitted)}</span>
                   </div>
-                  <p className="entry-text">
-                    {e.foodDetails.length > 140 ? e.foodDetails.slice(0, 140) + '…' : e.foodDetails}
-                  </p>
+                  {/* Show breakfast / lunch / dinner if available, fallback to foodDetails */}
+                  {e.breakfast ? (
+                    <div style={{ fontSize: 13, color: '#374151', lineHeight: 1.7 }}>
+                      <div><b style={{ color: '#15803d' }}>🌅 Breakfast:</b> {e.breakfast}</div>
+                      <div><b style={{ color: '#15803d' }}>☀️ Lunch:</b> {e.lunch}</div>
+                      <div><b style={{ color: '#15803d' }}>🌙 Dinner:</b> {e.dinner}</div>
+                    </div>
+                  ) : (
+                    <p className="entry-text">
+                      {e.foodDetails && e.foodDetails.length > 140
+                        ? e.foodDetails.slice(0, 140) + '…'
+                        : e.foodDetails}
+                    </p>
+                  )}
                 </div>
               ))}
             </div>

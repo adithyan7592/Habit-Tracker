@@ -98,8 +98,16 @@ exports.saveBasicDetails = async (req, res) => {
 
 // ── POST /api/habits/submit ──────────────────────────────────────────────────
 exports.submitHabit = async (req, res) => {
-  const foodDetails = String(req.body.foodDetails || '').trim();
-  if (!foodDetails) return res.status(400).json({ message: 'Food details are required.' });
+  const breakfast = String(req.body.breakfast || '').trim();
+  const lunch     = String(req.body.lunch     || '').trim();
+  const dinner    = String(req.body.dinner    || '').trim();  
+
+  if (!breakfast) return res.status(400).json({ message: 'Breakfast is required.' });
+  if (!lunch)     return res.status(400).json({ message: 'Lunch is required.' });
+  if (!dinner)    return res.status(400).json({ message: 'Dinner is required.' });
+
+  // combine into foodDetails for LLM summary
+  const foodDetails = `Breakfast: ${breakfast} | Lunch: ${lunch} | Dinner: ${dinner}`;
 
   try {
     // 1. Load user to read startedAt
@@ -146,7 +154,7 @@ exports.submitHabit = async (req, res) => {
 
     // Run DB writes in parallel
     const [habit] = await Promise.all([
-      Habit.create({ phone: req.user.phone, dayNumber: nextExpected, foodDetails }),
+      Habit.create({ phone: req.user.phone, dayNumber: nextExpected, breakfast, lunch, dinner, foodDetails }),
       Object.keys(userUpdate).length
         ? User.findOneAndUpdate({ phone: req.user.phone }, { $set: userUpdate })
         : Promise.resolve()
@@ -213,7 +221,10 @@ exports.processAnalysis = async (req, res) => {
       `Customer phone: ${req.user.phone}`,
       `Basic details: ${JSON.stringify(details)}`,
       '7-day food habit diary:',
-      ...habits.map((h) => `Day ${h.dayNumber} (${new Date(h.dateSubmitted).toLocaleDateString('en-IN')}): ${h.foodDetails}`)
+      ...habits.map((h) => `Day ${h.dayNumber} (${new Date(h.dateSubmitted).toLocaleDateString('en-IN')}):
+  Breakfast: ${h.breakfast}
+  Lunch: ${h.lunch}
+  Dinner: ${h.dinner}`)
     ].join('\n');
 
     const analysis = await generateLLMAnalysis(summary);
