@@ -1,7 +1,7 @@
 const sendSMS = async (phone, otp) => {
   const cleanPhone = phone.replace('+', '');
 
-  const response = await fetch('https://control.msg91.com/api/v5/otp', {
+  const response = await fetch('https://control.msg91.com/api/v5/flow/', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -9,9 +9,10 @@ const sendSMS = async (phone, otp) => {
     },
     body: JSON.stringify({
       template_id: process.env.MSG91_TEMPLATE_ID,
-      mobile: cleanPhone,
-      otp: otp,
-      sender: 'FDTRCK'  // ← add this
+      sender: 'FDTRCK',
+      short_url: '0',
+      mobiles: cleanPhone,
+      VAR1: otp
     })
   });
 
