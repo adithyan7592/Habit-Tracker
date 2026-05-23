@@ -10,4 +10,5 @@ router.post('/request-otp', authController.requestOTP);
 // @desc    Verifies OTP and returns JWT token
 router.post('/verify-otp', authController.verifyOTP);
 router.post('/direct-login', authController.directLogin);
+router.post('/verify-widget', authController.verifyWidget);
 module.exports = router;

@@ -137,3 +137,45 @@ exports.directLogin = async (req, res) => {
     return res.status(500).json({ message: 'Login failed' });
   }
 };
+exports.verifyWidget = async (req, res) => {
+  const phone = normalizePhone(req.body.phone);
+  const accessToken = req.body.accessToken;
+
+  try {
+    const msg91Res = await fetch('https://control.msg91.com/api/v5/widget/verifyAccessToken', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        authkey: process.env.MSG91_AUTH_KEY,
+        'access-token': accessToken
+      })
+    });
+
+    const msg91Data = await msg91Res.json();
+    console.log('MSG91 verify response:', msg91Data);
+
+    if (msg91Data.type === 'error' || !msg91Res.ok) {
+      return res.status(400).json({ message: 'OTP verification failed' });
+    }
+
+    const role = getRoleByPhone(phone);
+    await User.findOneAndUpdate(
+      { phone },
+      { $setOnInsert: { phone, role } },
+      { upsert: true }
+    );
+
+    const user = await User.findOne({ phone });
+    const token = jwt.sign(
+      { id: user._id, phone: user.phone, role },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    return res.json({ token, role, phone });
+
+  } catch (err) {
+    console.error('Widget verify failed:', err);
+    return res.status(500).json({ message: 'Verification failed' });
+  }
+};

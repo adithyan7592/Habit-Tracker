@@ -68,36 +68,47 @@ const Login = () => {
   const navigate = useNavigate();
   const clearErr = () => setError('');
 
-  const handleRequestOtp = async () => {
-    clearErr(); setLoading(true);
-    try {
-      const res = await fetch(`${API_BASE}/auth/request-otp`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to send OTP');
-      setStep(2); setCanResend(false);
-    } catch (err) { setError(err.message); }
-    finally { setLoading(false); }
-  };
+const handleRequestOtp = async () => {
+  clearErr(); setLoading(true);
+  try {
+    const cleanPhone = phone.replace('+', '').replace(/\s/g, '');
+    await new Promise((resolve, reject) => {
+      window.sendOtp(
+        cleanPhone,
+        (data) => resolve(data),
+        (error) => reject(new Error(error?.message || 'Failed to send OTP'))
+      );
+    });
+    setStep(2); setCanResend(false);
+  } catch (err) { setError(err.message); }
+  finally { setLoading(false); }
+};
 
-  const handleVerifyOtp = async () => {
-    clearErr(); setLoading(true);
-    try {
-      const res = await fetch(`${API_BASE}/auth/verify-otp`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, otp }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Invalid OTP');
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('role',  data.role);
-      localStorage.setItem('phone', data.phone);
-      navigate(data.role === 'admin' ? '/admin' : '/dashboard');
-    } catch (err) { setError(err.message); setOtp(''); }
-    finally { setLoading(false); }
-  };
+ const handleVerifyOtp = async () => {
+  clearErr(); setLoading(true);
+  try {
+    const accessToken = await new Promise((resolve, reject) => {
+      window.verifyOtp(
+        otp,
+        (data) => resolve(data.message),
+        (error) => reject(new Error(error?.message || 'Invalid OTP'))
+      );
+    });
+
+    const res = await fetch(`${API_BASE}/auth/verify-widget`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, accessToken }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Login failed');
+    localStorage.setItem('token', data.token);
+    localStorage.setItem('role',  data.role);
+    localStorage.setItem('phone', data.phone);
+    navigate(data.role === 'admin' ? '/admin' : '/dashboard');
+  } catch (err) { setError(err.message); setOtp(''); }
+  finally { setLoading(false); }
+};
 
   // ── Backup login — no OTP required ────────────────────────────────────────
   const handleDirectLogin = async () => {
@@ -196,14 +207,19 @@ const Login = () => {
               <button className="btn-primary" disabled={!otpOk || loading} onClick={handleVerifyOtp}>
                 {loading ? '⏳ Verifying…' : 'Verify & Sign In ✓'}
               </button>
-
-              <div className="login-resend-row">
-                {canResend
-                  ? <button className="btn-ghost green" onClick={() => { setCanResend(false); handleRequestOtp(); }}>↻ Resend OTP</button>
-                  : <Countdown seconds={60} onDone={() => setCanResend(true)}/>
-                }
-                <button className="btn-ghost gray" onClick={() => { setStep(1); setOtp(''); clearErr(); }}>← Change number</button>
-              </div>
+<div className="login-resend-row">
+  {canResend
+    ? <button className="btn-ghost green" onClick={() => {
+        setCanResend(false);
+        window.retryOtp(null,
+          () => {},
+          (err) => setError(err?.message || 'Resend failed')
+        );
+      }}>↻ Resend OTP</button>
+    : <Countdown seconds={60} onDone={() => setCanResend(true)}/>
+  }
+  <button className="btn-ghost gray" onClick={() => { setStep(1); setOtp(''); clearErr(); }}>← Change number</button>
+</div>
 
               {/* ── Backup login on OTP step too ── */}
               <div style={{ marginTop:20, paddingTop:16, borderTop:'1px solid #e5e7eb', textAlign:'center' }}>

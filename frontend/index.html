@@ -4,10 +4,25 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>frontend</title>
+    <title>Food Habit Tracker</title>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+
+    <script type="text/javascript">
+      var configuration = {
+        widgetId: "366577716a77393439323032",
+        tokenAuth: "519198TmI4KpwXVQ2p6a11e672P1",
+        exposeMethods: true,
+        success: (data) => { console.log('MSG91 success', data); },
+        failure: (error) => { console.log('MSG91 failure', error); },
+      };
+    </script>
+    <script type="text/javascript"
+      onload="initSendOTP(configuration)"
+      src="https://verify.msg91.com/otp-provider.js">
+    </script>
+
   </body>
 </html>
