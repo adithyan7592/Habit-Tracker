@@ -398,7 +398,7 @@ ${renderMarkdown(status.finalReport)}</body></html>`;
           <div style={{ marginBottom: 12 }}>
             <Field label="Health goal" value={details.healthGoal}
               onChange={v => setDetails({...details, healthGoal: v})}
-              placeholder="e.g. lose weight, eat healthier"/>
+              placeholder="e.g. Control diabetes, lose weight, eat healthier"/>
           </div>
           <div>
             <label className="field-label">Medical notes / allergies</label>

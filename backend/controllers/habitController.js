@@ -48,7 +48,7 @@ exports.getStatus = async (req, res) => {
 
     res.json({
       phone:             req.user.phone,
-      daysCompleted:     entries.length,
+      daysCompleted: entries.filter(e => e.breakfast && e.lunch && e.dinner).length,
       entries,
       basicDetails:      user?.basicDetails      || {},
       finalReport:       user?.finalReport        || null,

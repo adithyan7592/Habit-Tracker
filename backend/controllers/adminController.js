@@ -31,29 +31,31 @@ exports.downloadCSV = async (req, res) => {
     const habits = await Habit.find({}).sort({ phone: 1, dayNumber: 1 }).lean();
     const usersByPhone = Object.fromEntries(users.map((u) => [u.phone, u]));
 
-    const rows = habits.map((h) => {
-      const u = usersByPhone[h.phone] || {};
-      return {
-        phone: h.phone,
-        name: u.basicDetails?.name || '',
-        age: u.basicDetails?.age || '',
-        gender: u.basicDetails?.gender || '',
-        heightCm: u.basicDetails?.heightCm || '',
-        weightKg: u.basicDetails?.weightKg || '',
-        healthGoal: u.basicDetails?.healthGoal || '',
-        medicalNotes: u.basicDetails?.medicalNotes || '',
-        dayNumber: h.dayNumber,
-        foodDetails: h.foodDetails,
-        dateSubmitted: h.dateSubmitted,
-        finalReport: u.finalReport || '',
-        reportGeneratedAt: u.reportGeneratedAt || ''
-      };
-    });
+   const rows = habits.map((h) => {
+  const u = usersByPhone[h.phone] || {};
+  return {
+    phone: h.phone,
+    name: u.basicDetails?.name || '',
+    age: u.basicDetails?.age || '',
+    gender: u.basicDetails?.gender || '',
+    heightCm: u.basicDetails?.heightCm || '',
+    weightKg: u.basicDetails?.weightKg || '',
+    healthGoal: u.basicDetails?.healthGoal || '',
+    medicalNotes: u.basicDetails?.medicalNotes || '',
+    dayNumber: h.dayNumber,
+    breakfast: h.breakfast || '',
+    lunch: h.lunch || '',
+    dinner: h.dinner || '',
+    dateSubmitted: h.dateSubmitted,
+    finalReport: u.finalReport || '',
+    reportGeneratedAt: u.reportGeneratedAt || ''
+  };
+});
 
-    const fields = [
-      'phone', 'name', 'age', 'gender', 'heightCm', 'weightKg', 'healthGoal', 'medicalNotes',
-      'dayNumber', 'foodDetails', 'dateSubmitted', 'finalReport', 'reportGeneratedAt'
-    ];
+const fields = [
+  'phone', 'name', 'age', 'gender', 'heightCm', 'weightKg', 'healthGoal', 'medicalNotes',
+  'dayNumber', 'breakfast', 'lunch', 'dinner', 'dateSubmitted', 'finalReport', 'reportGeneratedAt'
+];
     const csv = new Parser({ fields }).parse(rows);
 
     res.header('Content-Type', 'text/csv');
