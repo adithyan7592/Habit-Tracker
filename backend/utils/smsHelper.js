@@ -5,16 +5,17 @@ const sendSMS = async (phone, otp) => {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      'authkey': process.env.MSG91_AUTH_KEY  // ← moved to header
     },
     body: JSON.stringify({
       template_id: process.env.MSG91_TEMPLATE_ID,
       mobile: cleanPhone,
-      authkey: process.env.MSG91_AUTH_KEY,
-      otp: otp
+      otp: otp                               // ← removed authkey from body
     })
   });
 
   const data = await response.json();
+  console.log('MSG91 response:', data);      // ← add this to see exact response
 
   if (!response.ok || data.type === 'error') {
     throw new Error(data.message || 'MSG91 SMS failed');
