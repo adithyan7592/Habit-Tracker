@@ -7,5 +7,5 @@ router.get('/status', auth, habitController.getStatus);
 router.put('/basic-details', auth, habitController.saveBasicDetails);
 router.post('/submit', auth, habitController.submitHabit);
 router.post('/generate-analysis', auth, habitController.processAnalysis);
-
+router.post('/submit-meal', auth, habitController.submitMeal);
 module.exports = router;

@@ -182,6 +182,93 @@ exports.submitHabit = async (req, res) => {
   }
 };
 
+// ── POST /api/habits/submit-meal ─────────────────────────────────────────
+exports.submitMeal = async (req, res) => {
+  const meal  = req.body.meal;  // 'breakfast' | 'lunch' | 'dinner'
+  const value = String(req.body.value || '').trim();
+
+  if (!['breakfast','lunch','dinner'].includes(meal)) {
+    return res.status(400).json({ message: 'Invalid meal type.' });
+  }
+  if (!value) {
+    return res.status(400).json({ message: `${meal} details are required.` });
+  }
+
+  try {
+    const user = await User.findOne({ phone: req.user.phone }).lean();
+    const expectedDay = getExpectedDayNumber(user?.startedAt || null);
+
+    if (expectedDay === null) {
+      return res.status(400).json({ message: 'Your 7-day submission window has closed.' });
+    }
+
+    const lastEntry = await Habit.findOne({ phone: req.user.phone })
+      .sort({ dayNumber: -1 }).lean();
+    const lastStoredDay = lastEntry ? lastEntry.dayNumber : 0;
+    const nextExpected  = lastStoredDay + 1;
+
+    if (expectedDay < nextExpected) {
+      return res.status(400).json({
+        message: `You have already submitted Day ${lastStoredDay}. Come back tomorrow.`
+      });
+    }
+
+    // Check if today's habit entry already exists
+    const todayHabit = await Habit.findOne({
+      phone: req.user.phone,
+      dayNumber: nextExpected
+    });
+
+    if (todayHabit && todayHabit[meal]) {
+      return res.status(400).json({ message: `${meal} already submitted for today.` });
+    }
+
+    let habit;
+    if (todayHabit) {
+      // Update existing entry with this meal
+      todayHabit[meal] = value;
+
+      // If all 3 meals done, combine into foodDetails for LLM
+      if (todayHabit.breakfast && todayHabit.lunch && todayHabit.dinner) {
+        todayHabit.foodDetails = `Breakfast: ${todayHabit.breakfast} | Lunch: ${todayHabit.lunch} | Dinner: ${todayHabit.dinner}`;
+      }
+
+      habit = await todayHabit.save();
+    } else {
+      // Create new entry with just this meal
+      habit = await Habit.create({
+        phone: req.user.phone,
+        dayNumber: nextExpected,
+        [meal]: value
+      });
+
+      // Set startedAt on first ever entry
+      if (nextExpected === 1) {
+        const startMidnight  = toMidnightUTC();
+        const unlockMidnight = new Date(startMidnight.getTime() + 7 * 24 * 60 * 60 * 1000);
+        await User.findOneAndUpdate(
+          { phone: req.user.phone },
+          { $set: { startedAt: startMidnight, reportUnlockAt: unlockMidnight } }
+        );
+      }
+    }
+
+    const allMealsDone = habit.breakfast && habit.lunch && habit.dinner;
+
+    return res.status(201).json({
+      message: allMealsDone
+        ? `Day ${nextExpected} complete! All meals logged.`
+        : `${meal.charAt(0).toUpperCase() + meal.slice(1)} saved!`,
+      habit,
+      allMealsDone
+    });
+
+  } catch (err) {
+    console.error('submitMeal failed:', err);
+    res.status(500).json({ message: 'Meal submission failed' });
+  }
+};
+
 
 // ── POST /api/habits/generate-analysis ──────────────────────────────────────
 exports.processAnalysis = async (req, res) => {

@@ -28,6 +28,7 @@ const fmtDate = d => d ? new Date(d).toLocaleDateString('en-IN', {
 
 const emptyDetails = { name: '', age: '', gender: '', heightCm: '', weightKg: '', healthGoal: '', medicalNotes: '' };
 
+/* ── Progress dots ── */
 const ProgressDots = ({ daysCompleted, expectedDay, windowExpired }) => (
   <div className="progress-dots">
     {Array.from({ length: 7 }, (_, i) => {
@@ -43,6 +44,7 @@ const ProgressDots = ({ daysCompleted, expectedDay, windowExpired }) => (
   </div>
 );
 
+/* ── Toast ── */
 const Toast = ({ msg }) => {
   if (!msg.text) return null;
   return (
@@ -53,6 +55,7 @@ const Toast = ({ msg }) => {
   );
 };
 
+/* ── Field ── */
 const Field = ({ label, value, onChange, placeholder, type = 'text' }) => (
   <div>
     <label className="field-label">{label}</label>
@@ -61,6 +64,7 @@ const Field = ({ label, value, onChange, placeholder, type = 'text' }) => (
   </div>
 );
 
+/* ── Gender select ── */
 const GenderSelect = ({ value, onChange }) => (
   <div>
     <label className="field-label">Gender</label>
@@ -74,14 +78,72 @@ const GenderSelect = ({ value, onChange }) => (
   </div>
 );
 
+/* ── Single meal card ── */
+const MealCard = ({ icon, label, mealKey, savedValue, onSubmit, loadingMeal }) => {
+  const [value, setValue] = useState('');
+  const isSaved    = !!savedValue;
+  const isLoading  = loadingMeal === mealKey;
+
+  if (isSaved) {
+    return (
+      <div style={{ background:'#f0fdf4', border:'1px solid #bbf7d0',
+                     borderRadius:12, padding:'12px 16px' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:4 }}>
+          <span style={{ fontSize:16 }}>{icon}</span>
+          <span style={{ fontSize:12, fontWeight:700, color:'#15803d',
+                          textTransform:'uppercase', letterSpacing:'0.05em' }}>{label}</span>
+          <span style={{ marginLeft:'auto', fontSize:12, color:'#15803d',
+                          background:'#dcfce7', padding:'2px 8px', borderRadius:99,
+                          fontWeight:600 }}>✓ Saved</span>
+        </div>
+        <p style={{ margin:0, fontSize:13, color:'#374151', lineHeight:1.5 }}>{savedValue}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ background:'#fafafa', border:'1.5px solid #e5e7eb',
+                   borderRadius:12, padding:'14px 16px' }}>
+      <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:10 }}>
+        <span style={{ fontSize:16 }}>{icon}</span>
+        <label style={{ fontSize:12, fontWeight:700, color:'#374151',
+                         textTransform:'uppercase', letterSpacing:'0.05em' }}>{label}</label>
+      </div>
+      <textarea
+        className="entry-textarea"
+        rows={2}
+        placeholder={
+          mealKey === 'breakfast' ? 'e.g. Puttu and kadala curry, tea...' :
+          mealKey === 'lunch'     ? 'e.g. Rice, fish curry, sambar...' :
+                                   'e.g. Chapathi, egg curry...'
+        }
+        value={value}
+        onChange={e => setValue(e.target.value)}
+        maxLength={1000}
+        style={{ marginBottom:10 }}
+      />
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+        <span style={{ fontSize:11, color:'#9ca3af' }}>{value.length}/1000</span>
+        <button
+          className="btn-submit"
+          disabled={isLoading || !value.trim()}
+          onClick={() => onSubmit(mealKey, value, () => setValue(''))}
+          style={{ padding:'8px 20px', fontSize:13 }}
+        >
+          {isLoading ? '⏳ Saving…' : `Save ${label}`}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+/* ── Main Dashboard ── */
 const Dashboard = () => {
-  const [status,    setStatus]    = useState(null);
-  const [details,   setDetails]   = useState(emptyDetails);
-  const [breakfast, setBreakfast] = useState('');
-  const [lunch,     setLunch]     = useState('');
-  const [dinner,    setDinner]    = useState('');
-  const [loading,   setLoading]   = useState(false);
-  const [msg,       setMsg]       = useState({ text: '', type: '' });
+  const [status,     setStatus]     = useState(null);
+  const [details,    setDetails]    = useState(emptyDetails);
+  const [loading,    setLoading]    = useState(false);
+  const [loadingMeal,setLoadingMeal]= useState(''); // which meal is being saved
+  const [msg,        setMsg]        = useState({ text: '', type: '' });
 
   const showMsg = (text, type = 'error') => {
     setMsg({ text, type });
@@ -112,19 +174,19 @@ const Dashboard = () => {
     finally { setLoading(false); }
   };
 
-  // ── Submit habit with breakfast / lunch / dinner ──────────────────────────
-  const handleSubmit = async () => {
-    setLoading(true); clearMsg();
+  // ── Submit individual meal ────────────────────────────────────────────────
+  const handleMealSubmit = async (meal, value, clearField) => {
+    setLoadingMeal(meal); clearMsg();
     try {
-      const res = await apiFetch('/habits/submit', {
+      const res = await apiFetch('/habits/submit-meal', {
         method: 'POST',
-        body: JSON.stringify({ breakfast, lunch, dinner })
+        body: JSON.stringify({ meal, value })
       });
       showMsg(res.message, 'success');
-      setBreakfast(''); setLunch(''); setDinner('');
+      clearField();
       await getStatus();
     } catch (err) { showMsg(err.message); }
-    finally { setLoading(false); }
+    finally { setLoadingMeal(''); }
   };
 
   const handleGenerateReport = async () => {
@@ -153,7 +215,6 @@ ${renderMarkdown(status.finalReport)}</body></html>`;
 
   const logout = () => { localStorage.clear(); window.location.href = '/login'; };
 
-  // ── Loading state ─────────────────────────────────────────────────────────
   if (!status) return (
     <div className="spinner-wrap">
       <div className="spinner"/>
@@ -166,6 +227,20 @@ ${renderMarkdown(status.finalReport)}</body></html>`;
 
   const allDone     = daysCompleted === 7;
   const reportReady = allDone && windowExpired;
+
+  // Get today's partial entry if exists (breakfast/lunch saved but not dinner yet)
+  const todayEntry = entries.find(e => {
+    const d = new Date(e.dateSubmitted);
+    const today = new Date();
+    return d.getFullYear() === today.getFullYear() &&
+           d.getMonth()    === today.getMonth() &&
+           d.getDate()     === today.getDate();
+  });
+
+  const todayBreakfast = todayEntry?.breakfast || '';
+  const todayLunch     = todayEntry?.lunch     || '';
+  const todayDinner    = todayEntry?.dinner    || '';
+  const allMealsDone   = !!(todayBreakfast && todayLunch && todayDinner);
 
   // ── Entry section state machine ───────────────────────────────────────────
   let entrySection;
@@ -222,61 +297,63 @@ ${renderMarkdown(status.finalReport)}</body></html>`;
       </div>
     );
 
-  } else if (submittedToday && expectedDay <= daysCompleted) {
+  } else if (allMealsDone) {
+    // All 3 meals submitted today — day is locked
     entrySection = (
       <div className="state-card blue">
         <div className="state-emoji">☀️</div>
-        <h3 className="state-title blue">Day {daysCompleted} logged!</h3>
+        <h3 className="state-title blue">Day {daysCompleted} complete!</h3>
         <p className="state-text blue">
-          Come back tomorrow for Day {daysCompleted + 1}.
+          All 3 meals logged for today. Come back tomorrow for Day {daysCompleted + 1}.
           {reportUnlockAt && ` Report unlocks ${fmtDate(reportUnlockAt)}.`}
         </p>
       </div>
     );
 
   } else {
-    // ── Normal entry form with breakfast / lunch / dinner ──────────────────
+    // ── Meal entry form ───────────────────────────────────────────────────
+    const currentDay = expectedDay ?? daysCompleted + 1;
+
     entrySection = (
       <div>
         <div className="entry-header">
-          <span className="entry-day-badge">Day {expectedDay ?? daysCompleted + 1} of 7</span>
+          <span className="entry-day-badge">Day {currentDay} of 7</span>
           {startedAt && <span className="entry-unlock-text">Unlocks {fmtDate(reportUnlockAt)}</span>}
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 12 }}>
-          <div>
-            <label className="field-label">🌅 Breakfast</label>
-            <textarea className="entry-textarea" rows={2}
-              placeholder="e.g. Puttu and kadala curry, tea..."
-              value={breakfast}
-              onChange={e => setBreakfast(e.target.value)}
-              maxLength={1000}/>
-          </div>
-          <div>
-            <label className="field-label">☀️ Lunch</label>
-            <textarea className="entry-textarea" rows={2}
-              placeholder="e.g. Rice, fish curry, sambar..."
-              value={lunch}
-              onChange={e => setLunch(e.target.value)}
-              maxLength={1000}/>
-          </div>
-          <div>
-            <label className="field-label">🌙 Dinner</label>
-            <textarea className="entry-textarea" rows={2}
-              placeholder="e.g. Chapathi, egg curry..."
-              value={dinner}
-              onChange={e => setDinner(e.target.value)}
-              maxLength={1000}/>
-          </div>
+        {/* Progress indicator for today's meals */}
+        <div style={{ display:'flex', gap:8, marginBottom:16, flexWrap:'wrap' }}>
+          {[
+            { key:'breakfast', icon:'🌅', label:'Breakfast', done:!!todayBreakfast },
+            { key:'lunch',     icon:'☀️', label:'Lunch',     done:!!todayLunch },
+            { key:'dinner',    icon:'🌙', label:'Dinner',    done:!!todayDinner },
+          ].map(m => (
+            <span key={m.key} style={{
+              fontSize:12, padding:'4px 12px', borderRadius:99, fontWeight:500,
+              background: m.done ? '#dcfce7' : '#f3f4f6',
+              color:      m.done ? '#15803d' : '#9ca3af',
+              border: `1px solid ${m.done ? '#bbf7d0' : '#e5e7eb'}`,
+            }}>
+              {m.icon} {m.label} {m.done ? '✓' : ''}
+            </span>
+          ))}
         </div>
 
-        <div className="entry-footer">
-          <span style={{ fontSize: 12, color: '#9ca3af' }}>All 3 meals required</span>
-          <button className="btn-submit"
-            disabled={loading || !breakfast.trim() || !lunch.trim() || !dinner.trim()}
-            onClick={handleSubmit}>
-            {loading ? '⏳ Saving…' : `Submit Day ${expectedDay ?? daysCompleted + 1} →`}
-          </button>
+        <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+          <MealCard icon="🌅" label="Breakfast" mealKey="breakfast"
+            savedValue={todayBreakfast}
+            onSubmit={handleMealSubmit}
+            loadingMeal={loadingMeal}/>
+
+          <MealCard icon="☀️" label="Lunch" mealKey="lunch"
+            savedValue={todayLunch}
+            onSubmit={handleMealSubmit}
+            loadingMeal={loadingMeal}/>
+
+          <MealCard icon="🌙" label="Dinner" mealKey="dinner"
+            savedValue={todayDinner}
+            onSubmit={handleMealSubmit}
+            loadingMeal={loadingMeal}/>
         </div>
       </div>
     );
@@ -315,7 +392,6 @@ ${renderMarkdown(status.finalReport)}</body></html>`;
             <Field label="Height (cm)" value={details.heightCm} onChange={v => setDetails({...details, heightCm: v})} type="number" placeholder="e.g. 165"/>
             <Field label="Weight (kg)" value={details.weightKg} onChange={v => setDetails({...details, weightKg: v})} type="number" placeholder="e.g. 60"/>
           </div>
-
           <div style={{ marginBottom: 12 }}>
             <GenderSelect value={details.gender} onChange={v => setDetails({...details, gender: v})}/>
           </div>
@@ -358,12 +434,11 @@ ${renderMarkdown(status.finalReport)}</body></html>`;
                     <span className="entry-day-label">Day {e.dayNumber}</span>
                     <span className="entry-date">{fmtDate(e.dateSubmitted)}</span>
                   </div>
-                  {/* Show breakfast / lunch / dinner if available, fallback to foodDetails */}
                   {e.breakfast ? (
                     <div style={{ fontSize: 13, color: '#374151', lineHeight: 1.7 }}>
-                      <div><b style={{ color: '#15803d' }}>🌅 Breakfast:</b> {e.breakfast}</div>
-                      <div><b style={{ color: '#15803d' }}>☀️ Lunch:</b> {e.lunch}</div>
-                      <div><b style={{ color: '#15803d' }}>🌙 Dinner:</b> {e.dinner}</div>
+                      <div><b style={{ color:'#15803d' }}>🌅 Breakfast:</b> {e.breakfast}</div>
+                      <div><b style={{ color:'#15803d' }}>☀️ Lunch:</b> {e.lunch}</div>
+                      <div><b style={{ color:'#15803d' }}>🌙 Dinner:</b> {e.dinner}</div>
                     </div>
                   ) : (
                     <p className="entry-text">
@@ -386,4 +461,3 @@ ${renderMarkdown(status.finalReport)}</body></html>`;
 };
 
 export default Dashboard;
-
