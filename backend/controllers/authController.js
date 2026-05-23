@@ -102,3 +102,38 @@ exports.verifyOTP = async (req, res) => {
     return res.status(500).json({ message: 'OTP verification failed' });
   }
 };
+// ── POST /api/auth/direct-login (BACKUP — no OTP) ─────────────────────────
+exports.directLogin = async (req, res) => {
+  const phone = normalizePhone(req.body.phone);
+
+  if (!/^\+?[1-9]\d{9,14}$/.test(phone)) {
+    return res.status(400).json({
+      message: 'Enter a valid phone number with country code.'
+    });
+  }
+
+  try {
+    const role = getRoleByPhone(phone);
+
+    // Create user if doesn't exist, return existing if they do
+    await User.findOneAndUpdate(
+      { phone },
+      { $setOnInsert: { phone, role } },
+      { upsert: true }
+    );
+
+    const user = await User.findOne({ phone });
+
+    const token = jwt.sign(
+      { id: user._id, phone: user.phone, role },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    return res.json({ token, role, phone });
+
+  } catch (err) {
+    console.error('Direct login failed:', err);
+    return res.status(500).json({ message: 'Login failed' });
+  }
+};

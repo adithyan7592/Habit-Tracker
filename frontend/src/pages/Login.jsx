@@ -59,11 +59,11 @@ const features = [
 ];
 
 const Login = () => {
-  const [phone, setPhone] = useState('');
-  const [otp, setOtp] = useState('');
-  const [step, setStep] = useState(1);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [phone,     setPhone]     = useState('');
+  const [otp,       setOtp]       = useState('');
+  const [step,      setStep]      = useState(1);
+  const [loading,   setLoading]   = useState(false);
+  const [error,     setError]     = useState('');
   const [canResend, setCanResend] = useState(false);
   const navigate = useNavigate();
   const clearErr = () => setError('');
@@ -99,6 +99,24 @@ const Login = () => {
     finally { setLoading(false); }
   };
 
+  // ── Backup login — no OTP required ────────────────────────────────────────
+  const handleDirectLogin = async () => {
+    clearErr(); setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/auth/direct-login`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Login failed');
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('role',  data.role);
+      localStorage.setItem('phone', data.phone);
+      navigate(data.role === 'admin' ? '/admin' : '/dashboard');
+    } catch (err) { setError(err.message); }
+    finally { setLoading(false); }
+  };
+
   const phoneOk = /^\+?[1-9]\d{9,14}$/.test(phone.replace(/\s/g, ''));
   const otpOk   = otp.replace(/\s/g, '').length === 6;
 
@@ -131,7 +149,9 @@ const Login = () => {
             <>
               <h2 className="login-title">Sign in</h2>
               <p className="login-subtitle">Enter your phone number to receive a one-time code</p>
+
               {error && <div className="alert alert-error"><span className="alert-icon">⚠️</span>{error}</div>}
+
               <label className="login-label">Phone number</label>
               <div className="login-input-wrap">
                 <span className="login-input-icon">📱</span>
@@ -140,27 +160,61 @@ const Login = () => {
                   onKeyDown={e => e.key === 'Enter' && phoneOk && !loading && handleRequestOtp()}
                   className={`login-input${error ? ' error' : ''}`}/>
               </div>
+
               <button className="btn-primary" disabled={!phoneOk || loading} onClick={handleRequestOtp}>
                 {loading ? '⏳ Sending OTP…' : 'Send OTP →'}
               </button>
+
               <p className="login-terms">By continuing you agree to receive an SMS OTP.<br/>Standard messaging rates may apply.</p>
+
+              {/* ── Backup login ── */}
+              <div style={{ marginTop:20, paddingTop:20, borderTop:'1px solid #e5e7eb', textAlign:'center' }}>
+                <p style={{ fontSize:12, color:'#9ca3af', margin:'0 0 10px' }}>
+                  Not receiving OTP?
+                </p>
+                <button
+                  className="btn-ghost green"
+                  disabled={!phoneOk || loading}
+                  onClick={handleDirectLogin}
+                  style={{ width:'100%', justifyContent:'center', padding:'10px',
+                           opacity: !phoneOk ? 0.4 : 1 }}
+                >
+                  {loading ? '⏳ Logging in…' : 'Continue without OTP →'}
+                </button>
+              </div>
             </>
           ) : (
             <>
               <h2 className="login-title">Verify code</h2>
               <p className="login-subtitle">6-digit code sent to <b style={{ color:'#111827', fontFamily:'monospace' }}>{phone}</b></p>
+
               {error && <div className="alert alert-error"><span className="alert-icon">⚠️</span>{error}</div>}
+
               <label className="login-label">One-time password</label>
               <OtpInput value={otp} onChange={v => { setOtp(v); clearErr(); }}/>
+
               <button className="btn-primary" disabled={!otpOk || loading} onClick={handleVerifyOtp}>
                 {loading ? '⏳ Verifying…' : 'Verify & Sign In ✓'}
               </button>
+
               <div className="login-resend-row">
                 {canResend
                   ? <button className="btn-ghost green" onClick={() => { setCanResend(false); handleRequestOtp(); }}>↻ Resend OTP</button>
                   : <Countdown seconds={60} onDone={() => setCanResend(true)}/>
                 }
                 <button className="btn-ghost gray" onClick={() => { setStep(1); setOtp(''); clearErr(); }}>← Change number</button>
+              </div>
+
+              {/* ── Backup login on OTP step too ── */}
+              <div style={{ marginTop:20, paddingTop:16, borderTop:'1px solid #e5e7eb', textAlign:'center' }}>
+                <button
+                  className="btn-ghost green"
+                  disabled={loading}
+                  onClick={handleDirectLogin}
+                  style={{ width:'100%', justifyContent:'center', padding:'10px', fontSize:13 }}
+                >
+                  {loading ? '⏳ Logging in…' : 'Skip OTP — Continue without code'}
+                </button>
               </div>
             </>
           )}

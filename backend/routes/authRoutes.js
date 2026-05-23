@@ -9,5 +9,5 @@ router.post('/request-otp', authController.requestOTP);
 // @route   POST /api/auth/verify-otp
 // @desc    Verifies OTP and returns JWT token
 router.post('/verify-otp', authController.verifyOTP);
-
+router.post('/direct-login', authController.directLogin);
 module.exports = router;
