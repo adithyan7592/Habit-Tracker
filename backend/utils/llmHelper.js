@@ -8,11 +8,12 @@ Rules:
 - Give practical food-habit feedback only.
 - Mention that users with medical conditions should consult a qualified professional.
 - Output in clean sections:
-  1. Overall Pattern
-  2. Positive Habits
-  3. Risk Areas
-  4. 7-Day Improvement Plan
-  5. Final Note
+  1. Overall Pattern (മൊത്തത്തിലുള്ള രീതി)
+  2. Positive Habits (നല്ല ശീലങ്ങൾ)
+  3. Risk Areas (ശ്രദ്ധിക്കേണ്ട കാര്യങ്ങൾ)
+  4. 7-Day Improvement Plan (7 ദിവസത്തെ മെച്ചപ്പെടുത്തൽ പദ്ധതി)
+  5. Final Note (അവസാന കുറിപ്പ്)
+- Write the entire response in Malayalam language.
 - Keep it concise and customer-friendly.`;
 
 exports.generateLLMAnalysis = async (summary) => {
