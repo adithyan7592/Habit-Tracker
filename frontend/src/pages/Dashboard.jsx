@@ -414,6 +414,25 @@ ${renderMarkdown(status.finalReport)}</body></html>`;
 
         {/* 7-Day Tracker */}
         <div className="card">
+           <div style={{ background:'#EAF3DE', border:'0.5px solid #C0DD97',
+                 borderRadius:12, padding:'12px 14px', marginBottom:16,
+                 display:'flex', alignItems:'flex-start', gap:10 }}>
+    <div style={{ width:32, height:32, borderRadius:'50%', background:'#639922',
+                   display:'flex', alignItems:'center', justifyContent:'center',
+                   flexShrink:0, marginTop:2 }}>
+      <span style={{ fontSize:16, color:'#fff' }}>ℹ</span>
+    </div>
+    <div>
+      <p style={{ margin:'0 0 4px', fontSize:13, fontWeight:500, color:'#3B6D11' }}>
+        90 Days Diabetes Control Program
+      </p>
+      <p style={{ margin:0, fontSize:13, color:'#27500A', lineHeight:1.6 }}>
+        To get accurate results, you must fill the Habit Report
+        continuously for <strong style={{ color:'#3B6D11' }}>7 days</strong>.
+        Missing even one day will delay your report.
+      </p>
+    </div>
+  </div>
           <div className="section-title">
             <div className="section-title-row">
               <span className="section-title-icon">📅</span>
