@@ -139,7 +139,7 @@ const handleRequestOtp = async () => {
         <div className="login-left-decor" style={{ width:80, height:80, top:'30%', left:'80%' }}/>
         <div className="login-logo">🥗</div>
         <h1 className="login-hero-title">Track your<br/>food habits.<br/><span>Transform</span> your health.</h1>
-        <p className="login-hero-sub">Log your meals for 7 days and receive a personalised AI nutrition analysis — all through your phone number.</p>
+        <p className="login-hero-sub">Log your meals for 7 days and receive a personalised AI nutrition analysis — all through your phone number.To get accurate results in our 90 Days Diabetes Control Program, you must fill the Habit Report continuously for 7 days.</p>
         <div className="login-features">
           {features.map((f, i) => (
             <div key={i} className="login-pill">
