@@ -34,7 +34,7 @@ exports.generateLLMAnalysis = async (summary) => {
 
     const response = await anthropic.messages.create({
       model: process.env.ANTHROPIC_MODEL || "claude-3-5-haiku-latest",
-      max_tokens: 1200,
+      max_tokens: 3000,
       temperature: 0.4,
       system: SYSTEM_PROMPT,
       messages: [
