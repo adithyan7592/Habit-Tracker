@@ -29,7 +29,7 @@ const fmtDate = d => d ? new Date(d).toLocaleDateString('en-IN', {
 const emptyDetails = { name: '', age: '', gender: '', heightCm: '', weightKg: '', healthGoal: '', medicalNotes: '' };
 
 /* ── Progress dots ── */
-const ProgressDots = ({ daysCompleted, expectedDay, windowExpired }) => (
+const ProgressDots = ({ daysCompleted, expectedDay, windowExpired, currentWeek }) => (
   <div className="progress-dots">
     {Array.from({ length: 7 }, (_, i) => {
       const day = i + 1, done = day <= daysCompleted, cur = !done && day === expectedDay && !windowExpired;
@@ -40,7 +40,7 @@ const ProgressDots = ({ daysCompleted, expectedDay, windowExpired }) => (
         </div>
       );
     })}
-    <span className="progress-label">{daysCompleted}/7 days</span>
+    <span className="progress-label">Week {currentWeek} · {daysCompleted}/7 days</span>
   </div>
 );
 
@@ -222,20 +222,16 @@ ${renderMarkdown(status.finalReport)}</body></html>`;
     </div>
   );
 
-  const { daysCompleted, entries, finalReport, reportGeneratedAt,
-          startedAt, reportUnlockAt, expectedDay, windowExpired, submittedToday } = status;
+const { daysCompleted, entries, finalReport, reportGeneratedAt,
+        startedAt, reportUnlockAt, expectedDay, windowExpired, submittedToday,
+        currentWeek, weekStartedAt, weekExpired, weekReports, currentWeekReport,
+        todayEntry } = status;
 
-  const allDone     = daysCompleted === 7;
-  const reportReady = allDone && windowExpired;
+const allDone     = daysCompleted === 7;
+const reportReady = weekExpired || allDone;
 
-  // Get today's partial entry if exists (breakfast/lunch saved but not dinner yet)
-  const todayEntry = entries.find(e => {
-    const d = new Date(e.dateSubmitted);
-    const today = new Date();
-    return d.getFullYear() === today.getFullYear() &&
-           d.getMonth()    === today.getMonth() &&
-           d.getDate()     === today.getDate();
-  });
+// TO:
+// todayEntry now comes directly from backend — no local calculation needed
 
   const todayBreakfast = todayEntry?.breakfast || '';
   const todayLunch     = todayEntry?.lunch     || '';
@@ -264,10 +260,10 @@ ${renderMarkdown(status.finalReport)}</body></html>`;
     entrySection = (
       <div className="state-card green">
         <div className="state-emoji">🎉</div>
-        <h3 className="state-title green">All 7 days logged!</h3>
-        <p className="state-text green">
-          Report unlocks on <b style={{ color: '#15803d' }}>{fmtDate(reportUnlockAt)}</b>
-        </p>
+     <h3 className="state-title green">Week {currentWeek} complete!</h3>
+<p className="state-text green">
+  All 7 days logged. Report unlocks on <b style={{ color: '#15803d' }}>{fmtDate(reportUnlockAt)}</b>
+</p>
         {days > 0 && <p style={{ fontSize: 13, color: '#9ca3af', margin: 0 }}>{days} day{days > 1 ? 's' : ''} to go</p>}
       </div>
     );
@@ -276,26 +272,31 @@ ${renderMarkdown(status.finalReport)}</body></html>`;
     entrySection = (
       <div style={{ textAlign: 'center', padding: '24px 0' }}>
         <div className="state-emoji">✅</div>
-        <h3 className="state-title green" style={{ textAlign: 'center' }}>Collection complete</h3>
-        <p className="state-text green" style={{ textAlign: 'center', marginBottom: 16 }}>
-          Your 7-day window ended. Your report is ready!
-        </p>
+       <h3 className="state-title green" style={{ textAlign: 'center' }}>Week {currentWeek} complete</h3>
+<p className="state-text green" style={{ textAlign: 'center', marginBottom: 16 }}>
+  Your 7-day window ended. Generate your Week {currentWeek} report!
+</p>
         <button className="btn-generate" disabled={loading} onClick={handleGenerateReport}>
           {loading ? '⏳ AI Analysing…' : '🤖 Generate My Report'}
         </button>
       </div>
     );
 
-  } else if (windowExpired && !allDone) {
-    entrySection = (
-      <div className="state-card red">
-        <h3 className="state-title red">⏰ Submission window closed</h3>
-        <p className="state-text red">
-          Your window started on {fmtDate(startedAt)} has ended.
-          You submitted {daysCompleted}/7 days. Please contact support.
-        </p>
-      </div>
-    );
+ } else if (weekExpired && !allDone) {
+  entrySection = (
+    <div style={{ textAlign: 'center', padding: '24px 0' }}>
+      <div className="state-emoji">📋</div>
+      <h3 className="state-title green" style={{ textAlign: 'center' }}>
+        Week {currentWeek} ended
+      </h3>
+      <p className="state-text green" style={{ textAlign: 'center', marginBottom: 16 }}>
+        You submitted {daysCompleted}/7 days. Generate your report to continue to Week {(currentWeek || 1) + 1}.
+      </p>
+      <button className="btn-generate" disabled={loading} onClick={handleGenerateReport}>
+        {loading ? '⏳ AI Analysing…' : `🤖 Generate Week ${currentWeek} Report`}
+      </button>
+    </div>
+  );
 
   } else if (allMealsDone) {
     // All 3 meals submitted today — day is locked
@@ -438,10 +439,10 @@ ${renderMarkdown(status.finalReport)}</body></html>`;
               <span className="section-title-icon">📅</span>
               <h3 className="section-title-text">7-Day Food Habit Collection</h3>
             </div>
-            <p className="section-title-sub">Log your meals every day for 7 consecutive calendar days</p>
+           <p className="section-title-sub">Week {currentWeek} — Log your meals every day for 7 consecutive days</p>
           </div>
 
-          <ProgressDots daysCompleted={daysCompleted} expectedDay={expectedDay} windowExpired={windowExpired}/>
+          <ProgressDots daysCompleted={daysCompleted} expectedDay={expectedDay} windowExpired={windowExpired} currentWeek={currentWeek}/>
 
           {/* Submitted entries */}
           {entries.length > 0 && (
@@ -474,6 +475,38 @@ ${renderMarkdown(status.finalReport)}</body></html>`;
           {entries.length > 0 && <div className="divider"/>}
           {entrySection}
         </div>
+        {/* Past weekly reports */}
+{weekReports && weekReports.length > 0 && (
+  <div className="card">
+    <div className="section-title">
+      <div className="section-title-row">
+        <span className="section-title-icon">📊</span>
+        <h3 className="section-title-text">Previous Weekly Reports</h3>
+      </div>
+      <p className="section-title-sub">Compare your progress week by week</p>
+    </div>
+
+    {[...weekReports].reverse().map(r => (
+      <div key={r.weekNumber} style={{ marginBottom: 20 }}>
+        <div style={{ display:'flex', justifyContent:'space-between',
+                       alignItems:'center', marginBottom:8,
+                       paddingBottom:8, borderBottom:'1px solid #f3f4f6' }}>
+          <span style={{ fontSize:14, fontWeight:700, color:'#15803d' }}>
+            Week {r.weekNumber}
+          </span>
+          <span style={{ fontSize:12, color:'#9ca3af' }}>
+            {r.daysSubmitted}/7 days · {fmtDate(r.generatedAt)}
+          </span>
+        </div>
+        <div className="report-body"
+          dangerouslySetInnerHTML={{ __html: renderMarkdown(r.report) }}
+          style={{ background:'#f9fafb', border:'1px solid #e5e7eb',
+                   borderRadius:10, padding:'12px 14px' }}
+        />
+      </div>
+    ))}
+  </div>
+)}
       </div>
     </div>
   );

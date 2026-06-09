@@ -9,55 +9,80 @@ const toMidnightUTC = (date = new Date()) => {
   return d;
 };
 
-// ── Helper: compute which dayNumber the user SHOULD be submitting today ──────
-// Returns null if the user is outside their 7-day window (expired or not started).
-const getExpectedDayNumber = (startedAt) => {
-  if (!startedAt) return 1; // hasn't started yet — next submission is Day 1
-
-  const start         = toMidnightUTC(startedAt);
+// ── Helper: compute expected day within current week ─────────────────────────
+const getExpectedDayInWeek = (weekStartedAt) => {
+  if (!weekStartedAt) return 1;
+  const start         = toMidnightUTC(weekStartedAt);
   const todayMidnight = toMidnightUTC();
-  const diffMs        = todayMidnight - start;
-  const diffDays      = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  const dayNumber     = diffDays + 1; // Day 1 = diff 0, Day 7 = diff 6
+  const diffDays      = Math.floor((todayMidnight - start) / (1000 * 60 * 60 * 24));
+  return Math.min(diffDays + 1, 7);
+};
 
-  if (dayNumber < 1 || dayNumber > 7) return null;
-  return dayNumber;
+// ── Helper: check if week has expired (7+ days since weekStartedAt) ──────────
+const isWeekExpired = (weekStartedAt) => {
+  if (!weekStartedAt) return false;
+  const start         = toMidnightUTC(weekStartedAt);
+  const todayMidnight = toMidnightUTC();
+  return (todayMidnight - start) >= 7 * 24 * 60 * 60 * 1000;
 };
 
 
 // ── GET /api/habits/status ───────────────────────────────────────────────────
 exports.getStatus = async (req, res) => {
   try {
-    const [entries, user] = await Promise.all([
-      Habit.find({ phone: req.user.phone }).sort({ dayNumber: 1 }).lean(),
-      User.findOne({ phone: req.user.phone }).lean()
-    ]);
+    const user = await User.findOne({ phone: req.user.phone }).lean();
 
-    const startedAt      = user?.startedAt      || null;
-    const reportUnlockAt = user?.reportUnlockAt  || null;
-    const now            = new Date();
+    const currentWeek    = user?.currentWeek    || 1;
+    const weekStartedAt  = user?.weekStartedAt  || null;
 
-    const expectedDay   = startedAt ? getExpectedDayNumber(startedAt) : 1;
-    const windowExpired = reportUnlockAt ? now >= reportUnlockAt : false;
+    // Get all entries sorted
+    const allEntries = await Habit.find({ phone: req.user.phone })
+      .sort({ weekNumber: 1, dayNumber: 1 }).lean();
 
+    // Current week entries only
+    const weekEntries = allEntries.filter(e => (e.weekNumber || 1) === currentWeek);
+
+    // Expected day calculation
+    const expectedDay = getExpectedDayInWeek(weekStartedAt);
+    const weekExpired = isWeekExpired(weekStartedAt);
+
+    // Today's entry check (UTC safe)
     const todayMidnight    = toMidnightUTC();
     const tomorrowMidnight = new Date(todayMidnight.getTime() + 24 * 60 * 60 * 1000);
-    const submittedToday   = entries.some(
-      (e) => e.dateSubmitted >= todayMidnight && e.dateSubmitted < tomorrowMidnight
+    const todayEntry = weekEntries.find(e =>
+      new Date(e.dateSubmitted) >= todayMidnight &&
+      new Date(e.dateSubmitted) < tomorrowMidnight
     );
+
+    // Count only fully completed days
+    const daysCompleted = weekEntries.filter(
+      e => e.breakfast && e.lunch && e.dinner
+    ).length;
+
+    const currentWeekReport = user?.weekReports?.find(
+      r => r.weekNumber === currentWeek
+    ) || null;
 
     res.json({
       phone:             req.user.phone,
-      daysCompleted: entries.filter(e => e.breakfast && e.lunch && e.dinner).length,
-      entries,
-      basicDetails:      user?.basicDetails      || {},
+      currentWeek,
+      daysCompleted,
+      entries:           weekEntries,
+      allEntries,
+      basicDetails:      user?.basicDetails || {},
+      weekReports:       user?.weekReports  || [],
+      currentWeekReport,
+      weekStartedAt,
+      expectedDay,
+      weekExpired,
+      todayEntry:        todayEntry || null,
+      submittedToday:    !!todayEntry,
+      // backward compat for old frontend references
       finalReport:       user?.finalReport        || null,
       reportGeneratedAt: user?.reportGeneratedAt  || null,
-      startedAt,
-      reportUnlockAt,
-      expectedDay,
-      windowExpired,
-      submittedToday,
+      startedAt:         user?.startedAt          || null,
+      reportUnlockAt:    user?.reportUnlockAt      || null,
+      windowExpired:     weekExpired,
     });
   } catch (err) {
     console.error('getStatus failed:', err);
@@ -88,6 +113,7 @@ exports.saveBasicDetails = async (req, res) => {
 
 
 // ── POST /api/habits/submit ──────────────────────────────────────────────────
+// Legacy route kept for backward compatibility
 exports.submitHabit = async (req, res) => {
   const breakfast = String(req.body.breakfast || '').trim();
   const lunch     = String(req.body.lunch     || '').trim();
@@ -101,15 +127,27 @@ exports.submitHabit = async (req, res) => {
 
   try {
     const user        = await User.findOne({ phone: req.user.phone }).lean();
-    const expectedDay = getExpectedDayNumber(user?.startedAt || null);
+    let currentWeek   = user?.currentWeek   || 1;
+    let weekStartedAt = user?.weekStartedAt || null;
 
-    if (expectedDay === null) {
-      return res.status(400).json({
-        message: 'Your 7-day submission window has closed. You can no longer add entries.'
-      });
+    // Auto-advance week if expired and report generated
+    if (weekStartedAt && isWeekExpired(weekStartedAt)) {
+      const thisWeekReport = user?.weekReports?.find(r => r.weekNumber === currentWeek);
+      if (thisWeekReport) {
+        currentWeek   = currentWeek + 1;
+        weekStartedAt = toMidnightUTC();
+        await User.findOneAndUpdate(
+          { phone: req.user.phone },
+          { $set: { currentWeek, weekStartedAt } }
+        );
+      }
     }
 
-    const lastEntry     = await Habit.findOne({ phone: req.user.phone }).sort({ dayNumber: -1 }).lean();
+    const expectedDay = getExpectedDayInWeek(weekStartedAt);
+
+    const lastEntry = await Habit.findOne({
+      phone: req.user.phone, weekNumber: currentWeek
+    }).sort({ dayNumber: -1 }).lean();
     const lastStoredDay = lastEntry ? lastEntry.dayNumber : 0;
     const nextExpected  = lastStoredDay + 1;
 
@@ -119,18 +157,18 @@ exports.submitHabit = async (req, res) => {
       });
     }
 
-    const isFirstEntry = nextExpected === 1;
+    const isFirstEntry = nextExpected === 1 && !weekStartedAt;
     const userUpdate   = {};
-
     if (isFirstEntry) {
-      const startMidnight  = toMidnightUTC();
-      const unlockMidnight = new Date(startMidnight.getTime() + 7 * 24 * 60 * 60 * 1000);
-      userUpdate.startedAt      = startMidnight;
-      userUpdate.reportUnlockAt = unlockMidnight;
+      userUpdate.weekStartedAt = toMidnightUTC();
+      userUpdate.currentWeek   = 1;
     }
 
     const [habit] = await Promise.all([
-      Habit.create({ phone: req.user.phone, dayNumber: nextExpected, breakfast, lunch, dinner, foodDetails }),
+      Habit.create({
+        phone: req.user.phone, weekNumber: currentWeek,
+        dayNumber: nextExpected, breakfast, lunch, dinner, foodDetails
+      }),
       Object.keys(userUpdate).length
         ? User.findOneAndUpdate({ phone: req.user.phone }, { $set: userUpdate })
         : Promise.resolve()
@@ -143,10 +181,6 @@ exports.submitHabit = async (req, res) => {
           : 'You have completed all 7 days! Your report will unlock tomorrow.'
       }`,
       habit,
-      ...(isFirstEntry ? {
-        startedAt:      userUpdate.startedAt,
-        reportUnlockAt: userUpdate.reportUnlockAt
-      } : {})
     });
 
   } catch (err) {
@@ -172,23 +206,33 @@ exports.submitMeal = async (req, res) => {
   }
 
   try {
-    const user        = await User.findOne({ phone: req.user.phone }).lean();
-    const expectedDay = getExpectedDayNumber(user?.startedAt || null);
+    const user = await User.findOne({ phone: req.user.phone }).lean();
+    let currentWeek   = user?.currentWeek   || 1;
+    let weekStartedAt = user?.weekStartedAt || null;
 
-    if (expectedDay === null) {
-      return res.status(400).json({ message: 'Your 7-day submission window has closed.' });
+    // ── Auto-advance to next week if expired and report generated ─────────
+    if (weekStartedAt && isWeekExpired(weekStartedAt)) {
+      const thisWeekReport = user?.weekReports?.find(r => r.weekNumber === currentWeek);
+      if (thisWeekReport) {
+        currentWeek   = currentWeek + 1;
+        weekStartedAt = toMidnightUTC();
+        await User.findOneAndUpdate(
+          { phone: req.user.phone },
+          { $set: { currentWeek, weekStartedAt } }
+        );
+      }
     }
 
-    const lastEntry     = await Habit.findOne({ phone: req.user.phone }).sort({ dayNumber: -1 }).lean();
-    const lastStoredDay = lastEntry ? lastEntry.dayNumber : 0;
+    const expectedDay = getExpectedDayInWeek(weekStartedAt);
 
-    // Check if today's partial entry already exists for expectedDay
+    // Check today's habit for this week
     const todayHabit = await Habit.findOne({
-      phone:     req.user.phone,
-      dayNumber: expectedDay
+      phone:      req.user.phone,
+      weekNumber: currentWeek,
+      dayNumber:  expectedDay
     });
 
-    // Block if the day is fully complete (all 3 meals done)
+    // Block if day fully complete
     const dayFullyDone = todayHabit &&
       todayHabit.breakfast && todayHabit.lunch && todayHabit.dinner;
 
@@ -198,14 +242,7 @@ exports.submitMeal = async (req, res) => {
       });
     }
 
-    // Block if trying to go to a previous completed day
-    if (expectedDay < lastStoredDay) {
-      return res.status(400).json({
-        message: `Come back tomorrow for Day ${lastStoredDay + 1}.`
-      });
-    }
-
-    // Block if this specific meal is already saved today
+    // Block if this meal already saved
     if (todayHabit && todayHabit[meal]) {
       return res.status(400).json({ message: `${meal} already saved for today.` });
     }
@@ -213,36 +250,51 @@ exports.submitMeal = async (req, res) => {
     let habit;
 
     if (todayHabit) {
-      // ── Update existing partial entry with this meal ──
+      // Update existing partial entry
       todayHabit[meal] = value;
-
-      // If all 3 meals now done, combine into foodDetails for LLM
       if (todayHabit.breakfast && todayHabit.lunch && todayHabit.dinner) {
         todayHabit.foodDetails = `Breakfast: ${todayHabit.breakfast} | Lunch: ${todayHabit.lunch} | Dinner: ${todayHabit.dinner}`;
       }
-
       habit = await todayHabit.save();
-
     } else {
-      // ── Create new entry with just this meal ──
+      // Create new entry
       habit = await Habit.create({
-        phone:     req.user.phone,
-        dayNumber: expectedDay,
-        [meal]:    value
+        phone:      req.user.phone,
+        weekNumber: currentWeek,
+        dayNumber:  expectedDay,
+        [meal]:     value
       });
 
-      // Set startedAt + reportUnlockAt on the very first meal of Day 1
-      if (expectedDay === 1 && !user?.startedAt) {
-        const startMidnight  = toMidnightUTC();
-        const unlockMidnight = new Date(startMidnight.getTime() + 7 * 24 * 60 * 60 * 1000);
+      // Set weekStartedAt on very first meal ever
+      if (!weekStartedAt) {
         await User.findOneAndUpdate(
           { phone: req.user.phone },
-          { $set: { startedAt: startMidnight, reportUnlockAt: unlockMidnight } }
+          { $set: { weekStartedAt: toMidnightUTC(), currentWeek: 1 } }
         );
+        weekStartedAt = toMidnightUTC();
       }
     }
 
     const allMealsDone = !!(habit.breakfast && habit.lunch && habit.dinner);
+
+    // Recalculate reportUnlockAt dynamically
+    if (allMealsDone) {
+      const totalSubmitted = await Habit.countDocuments({
+        phone:      req.user.phone,
+        weekNumber: currentWeek,
+        breakfast:  { $ne: '' },
+        lunch:      { $ne: '' },
+        dinner:     { $ne: '' }
+      });
+      const remainingDays = 7 - totalSubmitted;
+      if (remainingDays > 0) {
+        const newUnlockAt = new Date(toMidnightUTC().getTime() + remainingDays * 24 * 60 * 60 * 1000);
+        await User.findOneAndUpdate(
+          { phone: req.user.phone },
+          { $set: { reportUnlockAt: newUnlockAt } }
+        );
+      }
+    }
 
     return res.status(201).json({
       message: allMealsDone
@@ -265,57 +317,84 @@ exports.submitMeal = async (req, res) => {
 // ── POST /api/habits/generate-analysis ──────────────────────────────────────
 exports.processAnalysis = async (req, res) => {
   try {
-    const user   = await User.findOne({ phone: req.user.phone }).lean();
-    const habits = await Habit.find({ phone: req.user.phone }).sort({ dayNumber: 1 }).lean();
+    const user        = await User.findOne({ phone: req.user.phone }).lean();
+    const currentWeek = user?.currentWeek || 1;
+    const weekStartedAt = user?.weekStartedAt || null;
 
-    // 1. Validate: 7 entries must exist
-    if (habits.length < 7) {
-      return res.status(400).json({
-        message: `Only ${habits.length}/7 days submitted. Complete all 7 days first.`
-      });
+    // Must have started
+    if (!weekStartedAt) {
+      return res.status(400).json({ message: 'Start submitting meals first.' });
     }
 
-    // 2. Validate: reportUnlockAt must have passed
-    const reportUnlockAt = user?.reportUnlockAt;
-    if (!reportUnlockAt) {
-      return res.status(400).json({ message: 'Tracking window not started properly.' });
+    // Check if report already generated for this week
+    const existingReport = user?.weekReports?.find(r => r.weekNumber === currentWeek);
+    if (existingReport) {
+      return res.json({ analysis: existingReport.report, cached: true, weekNumber: currentWeek });
     }
-    if (new Date() < new Date(reportUnlockAt)) {
-      const unlockDate = new Date(reportUnlockAt).toLocaleDateString('en-IN', {
-        day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata'
-      });
+
+    // Week must have expired OR all 7 days submitted
+    const weekDiff = Math.floor(
+      (toMidnightUTC() - toMidnightUTC(weekStartedAt)) / (1000 * 60 * 60 * 24)
+    );
+    const habits = await Habit.find({
+      phone: req.user.phone, weekNumber: currentWeek
+    }).sort({ dayNumber: 1 }).lean();
+
+    const completeDays = habits.filter(h => h.breakfast && h.lunch && h.dinner).length;
+
+    if (weekDiff < 7 && completeDays < 7) {
       return res.status(403).json({
-        message: `Your report will be available on ${unlockDate} after all 7 days are complete.`,
-        reportUnlockAt
+        message: `Report unlocks after 7 days. ${7 - weekDiff} day${7 - weekDiff > 1 ? 's' : ''} remaining.`
       });
     }
 
-    // 3. Return cached report
-    if (user?.finalReport) {
-      return res.json({ analysis: user.finalReport, cached: true });
-    }
-
-    // 4. Build summary and call LLM
+    // Build summary — all 7 days, mark missing ones
     const details = user?.basicDetails || {};
+    const allDays = Array.from({ length: 7 }, (_, i) => {
+      const day = habits.find(h => h.dayNumber === i + 1);
+      if (day && day.breakfast && day.lunch && day.dinner) {
+        return `Day ${i + 1}: Breakfast: ${day.breakfast} | Lunch: ${day.lunch} | Dinner: ${day.dinner}`;
+      }
+      return `Day ${i + 1}: Not submitted`;
+    });
+
     const summary = [
       `Customer phone: ${req.user.phone}`,
+      `Week number: ${currentWeek}`,
       `Basic details: ${JSON.stringify(details)}`,
-      '7-day food habit diary:',
-      ...habits.map((h) => `Day ${h.dayNumber} (${new Date(h.dateSubmitted).toLocaleDateString('en-IN')}):
-  Breakfast: ${h.breakfast || 'N/A'}
-  Lunch: ${h.lunch || 'N/A'}
-  Dinner: ${h.dinner || 'N/A'}`)
+      `Week ${currentWeek} food habit diary:`,
+      ...allDays
     ].join('\n');
 
     const analysis = await generateLLMAnalysis(summary);
 
-    // 5. Persist the report
+    // Save report and advance to next week
+    const nextWeek         = currentWeek + 1;
+    const nextWeekStartsAt = toMidnightUTC();
+
     await User.findOneAndUpdate(
       { phone: req.user.phone },
-      { finalReport: analysis, reportGeneratedAt: new Date() }
+      {
+        $push: {
+          weekReports: {
+            weekNumber:    currentWeek,
+            report:        analysis,
+            generatedAt:   new Date(),
+            daysSubmitted: completeDays
+          }
+        },
+        $set: {
+          currentWeek:   nextWeek,
+          weekStartedAt: nextWeekStartsAt,
+          // also update legacy fields for backward compat
+          finalReport:       analysis,
+          reportGeneratedAt: new Date(),
+          reportUnlockAt:    new Date(nextWeekStartsAt.getTime() + 7 * 24 * 60 * 60 * 1000)
+        }
+      }
     );
 
-    res.json({ analysis });
+    res.json({ analysis, weekNumber: currentWeek });
 
   } catch (err) {
     console.error('Analysis failed:', err);

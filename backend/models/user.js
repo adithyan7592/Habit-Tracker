@@ -10,20 +10,32 @@ const BasicDetailsSchema = new mongoose.Schema({
   medicalNotes: { type: String, trim: true, default: '' }
 }, { _id: false });
 
+const WeekReportSchema = new mongoose.Schema({
+  weekNumber:    { type: Number },
+  report:        { type: String },
+  generatedAt:   { type: Date },
+  daysSubmitted: { type: Number }
+}, { _id: false });
+
 const UserSchema = new mongoose.Schema({
   phone:     { type: String, required: true, unique: true, index: true },
   role:      { type: String, enum: ['user', 'admin'], default: 'user' },
   otp:       { type: String, select: false },
   otpExpires:{ type: Date,   select: false },
 
-  basicDetails:      { type: BasicDetailsSchema, default: () => ({}) },
+  basicDetails: { type: BasicDetailsSchema, default: () => ({}) },
+
+  // ── Weekly cycle fields ────────────────────────────────────────────────────
+  currentWeek:   { type: Number, default: 1 },
+  weekStartedAt: { type: Date,   default: null },
+  weekReports:   { type: [WeekReportSchema], default: [] },
+  // ──────────────────────────────────────────────────────────────────────────
+
+  // ── Kept for backward compatibility with existing users ───────────────────
   finalReport:       { type: String, default: null },
   reportGeneratedAt: { type: Date,   default: null },
-
-  // ── Calendar-anchor fields ─────────────────────────────────────────────────
-  // Set to midnight (UTC) of the day the user submits Day 1.
-  startedAt:      { type: Date, default: null },
-  reportUnlockAt: { type: Date, default: null },
+  startedAt:         { type: Date,   default: null },
+  reportUnlockAt:    { type: Date,   default: null },
   // ──────────────────────────────────────────────────────────────────────────
 
   createdAt: { type: Date, default: Date.now }
