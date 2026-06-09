@@ -241,21 +241,7 @@ const reportReady = weekExpired || allDone;
   // ── Entry section state machine ───────────────────────────────────────────
   let entrySection;
 
-  if (finalReport) {
-    entrySection = (
-      <div className="report-box">
-        <div className="report-header">
-          <div>
-            <h3 className="report-title">Your 7-Day Food Analysis</h3>
-            <p className="report-date">Generated on {fmtDate(reportGeneratedAt)}</p>
-          </div>
-          <button className="btn-download" onClick={downloadReport}>⬇ Download</button>
-        </div>
-        <div className="report-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(finalReport) }}/>
-      </div>
-    );
-
-  } else if (allDone && !windowExpired) {
+   if (allDone && !windowExpired) {
     const days = Math.ceil((new Date(reportUnlockAt) - new Date()) / 86400000);
     entrySection = (
       <div className="state-card green">
