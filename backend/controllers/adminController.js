@@ -16,7 +16,9 @@ exports.getAllUsersData = async (req, res) => {
     const data = users.map((user) => ({
       ...user,
       entries: habitsByPhone[user.phone] || [],
-      daysCompleted: (habitsByPhone[user.phone] || []).length
+      daysCompleted: (habitsByPhone[user.phone] || []).filter(
+  e => e.breakfast && e.lunch && e.dinner
+).length
     }));
 
     res.json(data);

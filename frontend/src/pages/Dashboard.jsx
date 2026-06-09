@@ -228,10 +228,7 @@ const { daysCompleted, entries, finalReport, reportGeneratedAt,
         todayEntry } = status;
 
 const allDone     = daysCompleted === 7;
-const reportReady = weekExpired || allDone;
-
-// TO:
-// todayEntry now comes directly from backend — no local calculation needed
+const reportReady = weekExpired;
 
   const todayBreakfast = todayEntry?.breakfast || '';
   const todayLunch     = todayEntry?.lunch     || '';
@@ -241,7 +238,7 @@ const reportReady = weekExpired || allDone;
   // ── Entry section state machine ───────────────────────────────────────────
   let entrySection;
 
-   if (allDone && !windowExpired) {
+  if (allDone && !weekExpired) {
     const days = Math.ceil((new Date(reportUnlockAt) - new Date()) / 86400000);
     entrySection = (
       <div className="state-card green">
@@ -268,21 +265,6 @@ const reportReady = weekExpired || allDone;
       </div>
     );
 
- } else if (weekExpired && !allDone) {
-  entrySection = (
-    <div style={{ textAlign: 'center', padding: '24px 0' }}>
-      <div className="state-emoji">📋</div>
-      <h3 className="state-title green" style={{ textAlign: 'center' }}>
-        Week {currentWeek} ended
-      </h3>
-      <p className="state-text green" style={{ textAlign: 'center', marginBottom: 16 }}>
-        You submitted {daysCompleted}/7 days. Generate your report to continue to Week {(currentWeek || 1) + 1}.
-      </p>
-      <button className="btn-generate" disabled={loading} onClick={handleGenerateReport}>
-        {loading ? '⏳ AI Analysing…' : `🤖 Generate Week ${currentWeek} Report`}
-      </button>
-    </div>
-  );
 
   } else if (allMealsDone) {
     // All 3 meals submitted today — day is locked
