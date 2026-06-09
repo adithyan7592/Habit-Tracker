@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const HabitSchema = new mongoose.Schema({
   phone:        { type: String, required: true, index: true },
   weekNumber:   { type: Number, required: true, default: 1 },  // ← add this
