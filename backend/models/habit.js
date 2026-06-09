@@ -1,7 +1,8 @@
 const mongoose = require('mongoose');
+
 const HabitSchema = new mongoose.Schema({
   phone:        { type: String, required: true, index: true },
-  weekNumber:   { type: Number, required: true, default: 1 },  // ← add this
+  weekNumber:   { type: Number, required: true, default: 1 },
   dayNumber:    { type: Number, required: true, min: 1, max: 7 },
   breakfast:    { type: String, trim: true, default: '' },
   lunch:        { type: String, trim: true, default: '' },
@@ -9,4 +10,7 @@ const HabitSchema = new mongoose.Schema({
   foodDetails:  { type: String, trim: true, default: '' },
   dateSubmitted:{ type: Date, default: Date.now }
 });
+
 HabitSchema.index({ phone: 1, weekNumber: 1, dayNumber: 1 }, { unique: true });
+
+module.exports = mongoose.model('Habit', HabitSchema);
